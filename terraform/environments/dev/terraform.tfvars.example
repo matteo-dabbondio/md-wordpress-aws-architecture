@@ -1,0 +1,6 @@
+aws_region  = "eu-central-1"
+project     = "wordpress"
+environment = "dev"
+
+owner      = "your_team_or_name"
+repository = "https://SOURCE_REPOSITORY"
