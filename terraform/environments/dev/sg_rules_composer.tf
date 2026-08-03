@@ -1,1 +1,3 @@
-# PLACEHOLDER: add here the security group rules for EFS Security Group (it needs ECS module)
+# PLACEHOLDER: add here the security group rules for:
+# - EFS Security Group (it needs ECS module)
+# - Database (Aurora) Security Group (it needs ECS module)

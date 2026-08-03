@@ -50,3 +50,39 @@ variable "isolated_subnet_cidrs" {
   type        = list(string)
   default     = ["10.0.21.0/24", "10.0.22.0/24"]
 }
+
+variable "deletion_protection" {
+  description = "Protect deletable resources if they contains data (es db). false in dev for easy destroy the environment; true in prod"
+  type        = bool
+  default     = true
+}
+
+variable "aurora_min_capacity" {
+  description = "Aurora Serverless v2 minimum ACU"
+  type        = number
+  default     = 0.5
+}
+
+variable "aurora_max_capacity" {
+  description = "Aurora Serverless v2 maximum ACU"
+  type        = number
+  default     = 4
+}
+
+variable "aurora_backup_retention_period" {
+  description = "Aurora automated backup retention in days"
+  type        = number
+  default     = 7
+}
+
+variable "aurora_master_password_rotation_days" {
+  description = "Rotate Aurora master password every N days"
+  type        = number
+  default     = 30
+}
+
+variable "aurora_apply_immediately" {
+  description = "Apply Aurora modifications immediately or during maintenance windows"
+  type        = bool
+  default     = false
+}

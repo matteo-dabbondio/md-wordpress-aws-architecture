@@ -5,7 +5,15 @@ environment = "dev"
 owner      = "your-team-or-name"
 repository = "https://SOURCE_REPOSITORY"
 
+deletion_protection = false  # false in dev for easy destroy the environment; true in prod
+
 vpc_cidr = "10.0.0.0/16"
 public_subnet_cidrs   = ["10.0.1.0/24", "10.0.2.0/24"]
 private_subnet_cidrs  = ["10.0.11.0/24", "10.0.12.0/24"]
 isolated_subnet_cidrs = ["10.0.21.0/24", "10.0.22.0/24"]
+
+aurora_min_capacity                  = 0.5
+aurora_max_capacity                  = 2
+aurora_backup_retention_period       = 7
+aurora_master_password_rotation_days = 30
+aurora_apply_immediately             = true 

@@ -5,6 +5,14 @@
 
 # Access point in ECS task needs to be mounted at /var/www/html
 
+# WordPress container conventions (Debian www-data). Not env knobs.
+locals {
+  posix_uid                = 33
+  posix_gid                = 33
+  access_point_path        = "/html"
+  access_point_permissions = "775"
+}
+
 resource "aws_efs_file_system" "this" {
   creation_token   = "${var.name_prefix}-html"
   encrypted        = true
@@ -26,17 +34,17 @@ resource "aws_efs_access_point" "html" {
   file_system_id = aws_efs_file_system.this.id
 
   posix_user {
-    uid = var.posix_uid
-    gid = var.posix_gid
+    uid = local.posix_uid
+    gid = local.posix_gid
   }
 
   root_directory {
-    path = var.access_point_path
+    path = local.access_point_path
 
     creation_info {
-      owner_uid   = var.posix_uid
-      owner_gid   = var.posix_gid
-      permissions = var.access_point_permissions
+      owner_uid   = local.posix_uid
+      owner_gid   = local.posix_gid
+      permissions = local.access_point_permissions
     }
   }
 
