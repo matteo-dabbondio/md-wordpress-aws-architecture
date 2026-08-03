@@ -5,7 +5,7 @@ environment = "dev"
 owner      = "your-team-or-name"
 repository = "https://SOURCE_REPOSITORY"
 
-deletion_protection = false  # false in dev for easy destroy the environment; true in prod
+ephemeral_environment = true  # true in dev for easy destroy the environment; false in prod
 
 vpc_cidr = "10.0.0.0/16"
 public_subnet_cidrs   = ["10.0.1.0/24", "10.0.2.0/24"]
@@ -17,3 +17,8 @@ aurora_max_capacity                  = 2
 aurora_backup_retention_period       = 7
 aurora_master_password_rotation_days = 30
 aurora_apply_immediately             = true 
+
+valkey_max_data_storage_gb = 1
+valkey_max_ecpu_per_second = 1000
+
+ecr_image_retention_count = 2 

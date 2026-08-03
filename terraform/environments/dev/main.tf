@@ -1,7 +1,7 @@
 # Main Terraform configuration for the development environment
 # Terraform modules are orchestrated here to build the infrastructure
 
-# Modules order (PLACEHOLDER): networking (ok), efs (ok), database (ok), cache (ok), ecr, storage, alb, cdn, ecs 
+# Modules order (PLACEHOLDER): networking (ok), efs (ok), database (ok), cache (ok), ecr (ok), storage, alb, cdn, ecs 
 
 data "aws_availability_zones" "available" {
   state = "available"
@@ -35,8 +35,10 @@ locals {
     local.azs[i] => { cidr = cidr, az = local.azs[i] }
   }
 
-  skip_final_snapshot         = !var.deletion_protection
-  secret_recovery_window_days = var.deletion_protection ? 7 : 0
+  skip_final_snapshot         = var.ephemeral_environment
+  secret_recovery_window_days = var.ephemeral_environment ? 0 : 7
+  deletion_protection         = !var.ephemeral_environment
+  force_delete                = var.ephemeral_environment
 }
 
 # Validation checks on AZ region availability and subnet variables list lengths
@@ -92,7 +94,7 @@ module "database" {
   backup_retention_period       = var.aurora_backup_retention_period
   master_password_rotation_days = var.aurora_master_password_rotation_days
   apply_immediately             = var.aurora_apply_immediately
-  deletion_protection           = var.deletion_protection
+  deletion_protection           = local.deletion_protection
   skip_final_snapshot           = local.skip_final_snapshot
 }
 
@@ -108,4 +110,14 @@ module "cache" {
   max_data_storage_gb         = var.valkey_max_data_storage_gb
   max_ecpu_per_second         = var.valkey_max_ecpu_per_second
   secret_recovery_window_days = local.secret_recovery_window_days
+}
+
+module "ecr" {
+  source = "../../modules/ecr"
+
+  name_prefix = local.name_prefix
+  common_tags = local.common_tags
+
+  image_retention_count = var.ecr_image_retention_count
+  force_delete          = local.force_delete
 }

@@ -30,3 +30,7 @@ output "valkey_endpoint" {
   value = module.cache.endpoint_address
 }
 
+output "ecr_repository_url" {
+  value = module.ecr.repository_url
+}
+

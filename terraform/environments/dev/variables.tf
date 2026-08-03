@@ -51,10 +51,9 @@ variable "isolated_subnet_cidrs" {
   default     = ["10.0.21.0/24", "10.0.22.0/24"]
 }
 
-variable "deletion_protection" {
-  description = "Protect deletable resources if they contains data (es db). false in dev for easy destroy the environment; true in prod"
+variable "ephemeral_environment" {
+  description = "Data & resource protection on the environment: if the environment is ephemeral, data and resources will be forced to be deleted after the environment is destroyed"
   type        = bool
-  default     = true
 }
 
 variable "aurora_min_capacity" {
@@ -97,4 +96,10 @@ variable "valkey_max_ecpu_per_second" {
   description = "Valkey Serverless max ECPU per second"
   type        = number
   default     = 1000
+}
+
+variable "ecr_image_retention_count" {
+  description = "ECR lifecycle: number of tagged images to retain"
+  type        = number
+  default     = 10
 }
