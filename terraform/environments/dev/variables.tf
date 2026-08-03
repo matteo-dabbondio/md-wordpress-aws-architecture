@@ -86,3 +86,15 @@ variable "aurora_apply_immediately" {
   type        = bool
   default     = false
 }
+
+variable "valkey_max_data_storage_gb" {
+  description = "Valkey Serverless max data storage (GB)"
+  type        = number
+  default     = 1
+}
+
+variable "valkey_max_ecpu_per_second" {
+  description = "Valkey Serverless max ECPU per second"
+  type        = number
+  default     = 1000
+}

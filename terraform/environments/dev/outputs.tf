@@ -25,3 +25,8 @@ output "efs_file_system_id" {
 output "efs_access_point_id" {
   value = module.efs.access_point_id
 }
+
+output "valkey_endpoint" {
+  value = module.cache.endpoint_address
+}
+
