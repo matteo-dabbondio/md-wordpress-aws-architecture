@@ -1,7 +1,7 @@
 # Main Terraform configuration for the development environment
 # Terraform modules are orchestrated here to build the infrastructure
 
-# Modules order (PLACEHOLDER): networking (ok), efs, database, storage, cache, ecr, alb, cdn, ecs 
+# Modules order (PLACEHOLDER): networking (ok), efs (ok), database, storage, cache, ecr, alb, cdn, ecs 
 
 data "aws_availability_zones" "available" {
   state = "available"
@@ -60,9 +60,18 @@ module "networking" {
 
   name_prefix = local.name_prefix
   common_tags = local.common_tags
-  
-  vpc_cidr    = var.vpc_cidr
+
+  vpc_cidr         = var.vpc_cidr
   public_subnets   = local.public_subnets
   private_subnets  = local.private_subnets
   isolated_subnets = local.isolated_subnets
+}
+
+module "efs" {
+  source = "../../modules/efs"
+
+  name_prefix        = local.name_prefix
+  common_tags        = local.common_tags
+  vpc_id             = module.networking.vpc_id
+  private_subnet_ids = module.networking.private_subnet_ids
 }

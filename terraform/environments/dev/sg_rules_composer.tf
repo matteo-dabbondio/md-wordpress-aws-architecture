@@ -1,0 +1,1 @@
+# PLACEHOLDER: add here the security group rules for EFS Security Group (it needs ECS module)

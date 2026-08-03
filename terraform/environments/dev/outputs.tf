@@ -17,3 +17,11 @@ output "isolated_subnet_ids" {
 output "nat_gateway_ids" {
   value = module.networking.nat_gateway_ids
 }
+
+output "efs_file_system_id" {
+  value = module.efs.file_system_id
+}
+
+output "efs_access_point_id" {
+  value = module.efs.access_point_id
+}
