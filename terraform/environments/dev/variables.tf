@@ -103,3 +103,9 @@ variable "ecr_image_retention_days" {
   type        = number
   default     = 10
 }
+
+variable "cloudfront_price_class" {
+  description = "CloudFront price class"
+  type        = string
+  default     = "PriceClass_100"
+}

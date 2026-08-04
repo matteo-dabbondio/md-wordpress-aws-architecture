@@ -22,3 +22,5 @@ valkey_max_data_storage_gb = 1
 valkey_max_ecpu_per_second = 1000
 
 ecr_image_retention_count = 2 
+
+cloudfront_price_class = "PriceClass_100"

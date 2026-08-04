@@ -37,3 +37,19 @@ output "ecr_repository_url" {
 output "media_bucket_id" {
   value = module.storage.media_bucket_id
 }
+
+output "alb_dns_name" {
+  value = module.alb.alb_dns_name
+}
+
+output "alb_target_group_arn" {
+  value = module.alb.target_group_arn
+}
+
+output "cloudfront_domain_name" {
+  value = module.cdn.cloudfront_domain_name
+}
+
+output "cloudfront_url" {
+  value = module.cdn.cloudfront_url
+}

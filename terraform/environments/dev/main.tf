@@ -130,3 +130,34 @@ module "storage" {
 
   force_destroy = local.force_delete
 }
+
+module "alb" {
+  source = "../../modules/alb"
+
+  name_prefix = local.name_prefix
+  common_tags = local.common_tags
+
+  vpc_id            = module.networking.vpc_id
+  public_subnet_ids = module.networking.public_subnet_ids
+
+  enable_deletion_protection = local.deletion_protection
+}
+
+module "cdn" {
+  source = "../../modules/cdn"
+
+  providers = {
+    aws           = aws
+    aws.us_east_1 = aws.us_east_1
+  }
+
+  name_prefix = local.name_prefix
+  common_tags = local.common_tags
+
+  alb_dns_name                      = module.alb.alb_dns_name
+  media_bucket_regional_domain_name = module.storage.media_bucket_regional_domain_name
+  media_bucket_id                   = module.storage.media_bucket_id
+  media_bucket_arn                  = module.storage.media_bucket_arn
+
+  price_class = var.cloudfront_price_class
+}
