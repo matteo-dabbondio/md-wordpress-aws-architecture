@@ -24,3 +24,10 @@ valkey_max_ecpu_per_second = 1000
 ecr_image_retention_count = 2 
 
 cloudfront_price_class = "PriceClass_100"
+
+ecs_task_cpu            = 512
+ecs_task_memory         = 1024
+ecs_min_capacity        = 2
+ecs_max_capacity        = 6
+ecs_fargate_base        = 2
+ecs_fargate_spot_weight = 4

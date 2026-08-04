@@ -17,3 +17,8 @@ output "target_group_arn" {
   description = "Target group ARN for the ECS service"
   value       = aws_lb_target_group.wordpress.arn
 }
+
+output "target_group_arn_suffix" {
+  description = "Target group ARN suffix for autoscaling ResourceLabel"
+  value       = aws_lb_target_group.wordpress.arn_suffix
+}

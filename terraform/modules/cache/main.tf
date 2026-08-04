@@ -11,9 +11,10 @@ locals {
   snapshot_retention_limit = 0
 
   # WP Plugin: https://wordpress.org/plugins/redis-cache/
-  # allow normal cache ops, block dangerous admin.
+  # +@all then strip @dangerous (includes INFO/FLUSH*/KEYS/…).
+  # Re-allow flushdb (plugin/admin) and info (plugin diagnostics / connection check).
 
-  app_access_string = "on ~* +@all -@dangerous +flushdb"
+  app_access_string = "on ~* +@all -@dangerous +flushdb +info"
 }
 
 # random password for the application user

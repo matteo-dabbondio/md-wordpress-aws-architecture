@@ -8,7 +8,7 @@ data "aws_cloudfront_cache_policy" "caching_disabled" {
   name = "Managed-CachingDisabled"
 }
 
-# Managed AllViewer policy toforward viewer Host/cookies/query to ALB.
+# Managed AllViewer: policy to forward viewer Host/cookies/query to ALB.
 data "aws_cloudfront_origin_request_policy" "all_viewer" {
   name = "Managed-AllViewer"
 }
@@ -54,10 +54,13 @@ resource "aws_cloudfront_distribution" "this" {
     origin_id   = "alb"
 
     custom_origin_config {
-      http_port              = 80
-      https_port             = 443
-      origin_protocol_policy = "http-only"
-      origin_ssl_protocols   = ["TLSv1.2"]
+      http_port                = 80
+      https_port               = 443
+      origin_protocol_policy   = "http-only"
+      origin_ssl_protocols     = ["TLSv1.2"]
+      # After UAT test, the dfault 30s seemes to be too short for wp-admin plugin/teme install
+      origin_read_timeout      = 60
+      origin_keepalive_timeout = 60
     }
   }
 

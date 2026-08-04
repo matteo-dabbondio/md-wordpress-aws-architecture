@@ -18,6 +18,9 @@ resource "aws_lb" "this" {
   security_groups    = [aws_security_group.this.id]
   subnets            = values(var.public_subnet_ids)
 
+  # Must be >= CloudFront origin_read_timeout (plugin/theme installs are slow on EFS).
+  idle_timeout = 120
+
   enable_deletion_protection = var.enable_deletion_protection
 
   tags = merge(var.common_tags, { Name = "${var.name_prefix}-alb" })

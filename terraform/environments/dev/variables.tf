@@ -109,3 +109,45 @@ variable "cloudfront_price_class" {
   type        = string
   default     = "PriceClass_100"
 }
+
+variable "ecs_task_cpu" {
+  description = "Fargate task CPU units (ARCHITECTURE baseline: 512)"
+  type        = number
+  default     = 512
+}
+
+variable "ecs_task_memory" {
+  description = "Fargate task memory MiB (ARCHITECTURE baseline: 1024)"
+  type        = number
+  default     = 1024
+}
+
+variable "ecs_min_capacity" {
+  description = "Autoscaling / HA minimum task count (ARCHITECTURE: 2)"
+  type        = number
+  default     = 2
+}
+
+variable "ecs_max_capacity" {
+  description = "Autoscaling maximum task count (ARCHITECTURE: 6)"
+  type        = number
+  default     = 6
+}
+
+variable "ecs_fargate_base" {
+  description = "On-demand Fargate base capacity (ARCHITECTURE: 2)"
+  type        = number
+  default     = 2
+}
+
+variable "ecs_fargate_spot_weight" {
+  description = "Fargate Spot weight relative to on-demand (ARCHITECTURE: 4; 0 disables Spot)"
+  type        = number
+  default     = 4
+}
+
+variable "container_image_tag" {
+  description = "ECR deploy tag for the ECS bootstrap task definition (not the WordPress CMS version)"
+  type        = string
+  default     = "app"
+}

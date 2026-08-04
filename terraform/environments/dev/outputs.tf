@@ -53,3 +53,15 @@ output "cloudfront_domain_name" {
 output "cloudfront_url" {
   value = module.cdn.cloudfront_url
 }
+
+output "ecs_cluster_name" {
+  value = module.ecs.cluster_name
+}
+
+output "ecs_service_name" {
+  value = module.ecs.service_name
+}
+
+output "ecs_log_group_name" {
+  value = module.ecs.log_group_name
+}
