@@ -34,3 +34,6 @@ output "ecr_repository_url" {
   value = module.ecr.repository_url
 }
 
+output "media_bucket_id" {
+  value = module.storage.media_bucket_id
+}

@@ -118,6 +118,15 @@ module "ecr" {
   name_prefix = local.name_prefix
   common_tags = local.common_tags
 
-  image_retention_count = var.ecr_image_retention_count
+  image_retention_count = var.ecr_image_retention_days
   force_delete          = local.force_delete
+}
+
+module "storage" {
+  source = "../../modules/storage"
+
+  name_prefix = local.name_prefix
+  common_tags = local.common_tags
+
+  force_destroy = local.force_delete
 }

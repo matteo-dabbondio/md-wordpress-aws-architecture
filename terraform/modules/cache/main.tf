@@ -10,10 +10,6 @@ locals {
   major_engine_version     = "9"
   snapshot_retention_limit = 0
 
-  # Disabled default: required in many user-group flows; cannot log in / run commands.
-  # https://docs.aws.amazon.com/AmazonElastiCache/latest/dg/Clusters.RBAC.html
-  default_access_string = "off -@all"
-
   # WP Plugin: https://wordpress.org/plugins/redis-cache/
   # allow normal cache ops, block dangerous admin.
 
