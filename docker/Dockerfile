@@ -7,5 +7,6 @@
 # Build:  docker build -t wordpress-apache:app .
 # Deploy: push ECR tag "app" (PLACEHOLDER: ECS should be forced to take the new image).
 
+
 ARG WORDPRESS_VERSION=7.0
 FROM wordpress:${WORDPRESS_VERSION}-php8.3-apache
