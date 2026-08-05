@@ -91,6 +91,7 @@ Ogni Security Group è di proprietà del modulo della risorsa (`alb`, `ecs`, `da
 
 ```
 .
+├── .github/workflows/               # Deploy applicativo (build/push ECR + rolling ECS)
 ├── docker/                          # Dockerfile (immagine ufficiale WP Apache + build-arg versione)
 ├── docs/                            # Diagramma architetturale
 ├── terraform/
@@ -127,6 +128,7 @@ Naming: `{project}-{environment}-{resource}` (es. `wordpress-dev-vpc`). Tag comu
 | Media      | S3 privato + CloudFront OAC                              | Plugin WP Offload Media da wp-admin al primo accesso applicativo         |
 | App FS     | EFS Multi-AZ su `/var/www/html`                          | Plugin/theme condivisi tra task                                          |
 | Registry   | Amazon ECR                                               | Tag di deploy mutabile `app`                                             |
+| CI/CD      | GitHub Actions + OIDC                                    | Solo applicativo (build/push ECR + rolling ECS); no `terraform apply`    |
 | IaC        | Terraform ≥ 1.10, AWS provider ~> 6.0                    | Backend S3 + `use_lockfile`                                              |
 
 
@@ -237,7 +239,7 @@ L’ambiente Terraform di default è `dev` in regione `eu-central-1` (variabile 
 
 Questa sezione descrive il percorso operativo completo: dal provisioning dell’infrastruttura al primo accesso a WordPress.
 
-Il ciclo di vita della **piattaforma** (Terraform) e quello dell’**applicazione** (immagine Docker + rolling ECS) sono separati. Al primo avvio: `terraform apply` completo → pubblicazione dell’immagine su ECR → `force-new-deployment` del service.
+Il ciclo di vita della **piattaforma** (Terraform) e quello dell’**applicazione** (immagine Docker + rolling ECS) sono separati. Al primo avvio: `terraform apply` completo → pubblicazione dell’immagine su ECR (manuale o via CI) → `force-new-deployment` del service. Terraform **non** viene eseguito dalla pipeline applicativa.
 
 > Dopo il solo `apply`, i task ECS falliscono il pull (`CannotPullContainerError`) finché ECR non contiene immagine con il tag `app`. È il comportamento atteso in fase di bootstrap.
 
@@ -280,7 +282,7 @@ Output rilevanti dopo l’apply:
 | `alb_dns_name`                          | DNS dell’origin ALB (utile in diagnostica; l’accesso utente avviene via CloudFront) |
 
 
-### 6.3 Build e push dell’immagine WordPress
+### 6.3 Build e push dell’immagine WordPress (manuale)
 
 ```bash
 # Dalla root del repository
@@ -304,7 +306,7 @@ docker push "${ECR_URL}/${REPO_NAME}:${IMAGE_TAG}"
 
 `WORDPRESS_VERSION` è solo il build-arg CMS. Il tag ECR di deploy resta `app` (mutabile).
 
-### 6.4 Aggiornamento del service ECS
+### 6.4 Aggiornamento del service ECS (manuale)
 
 ```bash
 AWS_REGION=eu-central-1
@@ -325,11 +327,69 @@ aws ecs wait services-stable \
 
 Il flag `--force-new-deployment` è necessario: in bootstrap il deployment circuit breaker può aver interrotto i tentativi falliti sul pull dell’immagine.
 
-Per le release successive (cambio versione WordPress o rebuild dell’immagine): ripetere solo i passi 6.3 e 6.4. Eseguire `terraform apply` quando cambia l’infrastruttura.
+I passi 6.3 e 6.4 restano validi per bootstrap o hotfix locali. Per le release successive si può usare la pipeline in [6.5](#65-cicd-applicativo-github-actions---upgrade-del-deploy-manuale-dei-capitoli-63-e-64). Eseguire `terraform apply` solo quando cambia l’infrastruttura.
 
-> **CI/CD** — L’automazione di build/push ECR e rolling ECS (ad esempio via GitHub Actions con OIDC) è prevista come evolutiva e verrà documentata in una versione successiva di questo README. Il percorso che verrà supportato oggi è quello manuale descritto sopra. Non si prevedono pipeline DevOps per automatizzare il provisioning infrastrutturale (Terraform), per cui sono attese modifiche/ricicli molto limitati nel tempo.
+### 6.5 CI/CD applicativo (GitHub Actions) - upgrade del deploy manuale dei capitoli 6.3 e 6.4
 
-### 6.5 Primo accesso a WordPress
+La pipeline automatizza **solo** il ciclo applicativo: build Docker → push ECR (`:app`) → `ecs update-service --force-new-deployment` → attesa stabilità del service. Non esegue `terraform apply` / `destroy` e si pone come sostitutiva agli step manuali **6.3–6.4**. 
+
+Workflow: [`.github/workflows/deploy-wordpress.yml`](.github/workflows/deploy-wordpress.yml).
+
+**Trigger**
+
+- `push` su `main` con modifiche a `docker/**` o al workflow stesso
+- `workflow_dispatch` (esecuzione manuale da Actions → *Deploy Wordpress to Amazon ECS* → *Run workflow*)
+
+**Flusso**
+
+1. Assume role AWS via **OIDC** (nessuna access key statica nel repository)
+2. Login ECR e `docker build` dal context `docker/` (versione CMS = default `ARG` del Dockerfile, oggi `7.0`)
+3. Push dell’immagine sul tag mutabile `app`
+4. Force new deployment del service ECS e `aws ecs wait services-stable`
+
+#### Setup una tantum (permessi AWS per GitHub)
+
+1. **OIDC Identity Provider** in IAM (account AWS del progetto):
+   - Provider URL: `https://token.actions.githubusercontent.com`
+   - Audience: `sts.amazonaws.com`
+
+2. **Ruolo IAM** (es. `wordpress-dev-github-workflows-role`) assumibile da GitHub con `sts:AssumeRoleWithWebIdentity`, con policy least-privilege per:
+   - `ecr:GetAuthorizationToken`
+   - push sul repository ECR applicativo (`BatchCheckLayerAvailability`, `InitiateLayerUpload`, `UploadLayerPart`, `CompleteLayerUpload`, `PutImage`, …)
+   - `ecs:UpdateService` e `ecs:DescribeServices` su cluster/service di riferimento
+
+3. **Trust policy** — con `environment: dev` nel workflow (come nella configurazione attuale), il claim `sub` del token OIDC è tipicamente (si raccomanda di verificare richiesta CloudTraile in caso di problematiche a login OIDC):
+
+   `repo:<owner>@<owner_id>/<repo>@<repo_id>:environment:dev`
+
+```json
+{
+  "Effect": "Allow",
+  "Principal": {
+    "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com"
+  },
+  "Action": "sts:AssumeRoleWithWebIdentity",
+  "Condition": {
+    "StringEquals": {
+      "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+      "token.actions.githubusercontent.com:sub": "repo:<owner>@<owner_id>/<repo>@<repo_id>:environment:dev"
+    }
+  }
+}
+```
+
+4. **Secret GitHub** (Settings → Secrets and variables → Actions → Secrets):
+   - `AWS_ROLE_ARN` = ARN del ruolo IAM (es. `arn:aws:iam::<ACCOUNT_ID>:role/<role_name>`)
+
+I parametri di deploy (`AWS_REGION`, `ECR_REPOSITORY`, `ECS_CLUSTER`, `ECS_SERVICE`, `IMAGE_TAG`) sono definiti in `env:` nel workflow e vanno aggiornati lì se cambiano naming o regione.
+
+#### Uso quotidiano
+
+- Dopo il primo `terraform apply`, il bootstrap immagine può avvenire via **6.3–6.4** oppure lanciando il workflow (manual / push su `docker/`).
+- Release successive: modifica sotto `docker/` → push su `main`, oppure *Run workflow*.
+- Cambi infrastrutturali: solo `terraform apply` da workstation.
+
+### 6.6 Primo accesso a WordPress
 
 1. Aprire nel browser l’URL restituito da `terraform output -raw cloudfront_url`.
 2. Completare il wizard di installazione WordPress (crea l’utente amministratore CMS; non è gestito da Terraform e verrà salvato a db).
@@ -341,7 +401,7 @@ Per le release successive (cambio versione WordPress o rebuild dell’immagine):
 
 Il contratto applicativo è l’immagine ufficiale Hub e le relative variabili d’ambiente, configurate in fase di provisioning dell'ambiente e delle risorse infrastrutturale.
 
-### 6.6 Verifica
+### 6.7 Verifica
 
 - Home WordPress raggiungibile in HTTPS tramite CloudFront.
 - Target group ALB healthy sulla health check `GET /`.
@@ -408,9 +468,9 @@ La baseline copre i requisiti principali di sicurezza, disponibilità e scalabil
 
 **Operatività e qualità del release**
 
-- Pipeline CI/CD applicativa (build → ECR → rolling ECS), con auth OIDC e senza `terraform apply` automatico
-- Tag ECR immutabili + tagging per-build (oggi il deploy usa il tag mutabile `app`) con revisione della ECR image di riferimento sulla task definition (nuova)
+- Tag ECR immutabili + tagging per-build (oggi il deploy usa il tag mutabile `app`) con revisione della task definition ECS che punta alla nuova immagine
 - Enhanced scanning immagini (Inspector) - ora base scanning
+- Potenzialmente, per maggiore controllo sulle versioni a livello CI/CD, si potrebbe parametrizzare `WORDPRESS_VERSION` nella pipeline applicativa (on top al wrapper del dockerfile o in sostituzione)
 
 **Identità e rete pubblica**
 
@@ -522,6 +582,7 @@ Each Security Group is owned by its resource module (`alb`, `ecs`, `database`, `
 
 ```
 .
+├── .github/workflows/               # Application deploy (ECR build/push + ECS rolling)
 ├── docker/                          # Dockerfile (official WP Apache image + version build-arg)
 ├── docs/                            # Architecture diagram
 ├── terraform/
@@ -558,6 +619,7 @@ Naming: `{project}-{environment}-{resource}` (e.g. `wordpress-dev-vpc`). Common 
 | Media      | Private S3 + CloudFront OAC                              | WP Offload Media plugin from wp-admin on first application access         |
 | App FS     | Multi-AZ EFS at `/var/www/html`                          | Shared plugins/themes across tasks                                        |
 | Registry   | Amazon ECR                                               | Mutable deploy tag `app`                                                  |
+| CI/CD      | GitHub Actions + OIDC                                    | Application only (ECR build/push + ECS rolling); no `terraform apply`     |
 | IaC        | Terraform ≥ 1.10, AWS provider ~> 6.0                    | S3 backend + `use_lockfile`                                               |
 
 
@@ -668,7 +730,7 @@ The default Terraform environment is `dev` in region `eu-central-1` (`aws_region
 
 This section is the end-to-end operational guide: from provisioning infrastructure to the first WordPress login.
 
-**Platform** (Terraform) and **application** (Docker image + ECS rolling update) have separate lifecycles. First boot: full `terraform apply` → publish the image to ECR → `force-new-deployment` of the service.
+**Platform** (Terraform) and **application** (Docker image + ECS rolling update) have separate lifecycles. First boot: full `terraform apply` → publish the image to ECR (manual or via CI) → `force-new-deployment` of the service. Terraform is **not** run by the application pipeline.
 
 > After `apply` alone, ECS tasks fail to pull (`CannotPullContainerError`) until ECR contains an image with the `app` tag. This is expected during bootstrap.
 
@@ -711,7 +773,7 @@ Relevant outputs after apply:
 | `alb_dns_name`                          | ALB origin DNS (useful for diagnostics; end-user access is via CloudFront) |
 
 
-### 6.3 Build and push the WordPress image
+### 6.3 Build and push the WordPress image (manual)
 
 ```bash
 # From the repository root
@@ -735,7 +797,7 @@ docker push "${ECR_URL}/${REPO_NAME}:${IMAGE_TAG}"
 
 `WORDPRESS_VERSION` is the CMS build-arg only. The ECR deploy tag remains mutable `app`.
 
-### 6.4 Update the ECS service
+### 6.4 Update the ECS service (manual)
 
 ```bash
 AWS_REGION=eu-central-1
@@ -756,11 +818,69 @@ aws ecs wait services-stable \
 
 `--force-new-deployment` is required: during bootstrap the deployment circuit breaker may have stopped failed image-pull attempts.
 
-For later releases (WordPress version change or image rebuild): repeat only steps 6.3 and 6.4. Run `terraform apply` when infrastructure changes.
+Steps 6.3 and 6.4 remain valid for bootstrap or local hotfixes. For later releases you can use the pipeline in [6.5](#65-application-cicd-github-actions--upgrade-of-the-manual-deploy-in-sections-63-and-64). Run `terraform apply` only when infrastructure changes.
 
-> **CI/CD** — Automation of ECR build/push and ECS rolling updates (for example via GitHub Actions with OIDC) is planned as a roadmap item and will be documented in a later revision of this README. The path supported today is the manual procedure above. No DevOps pipeline is planned to automate infrastructure provisioning (Terraform), which is expected to change or recycle only rarely over time.
+### 6.5 Application CI/CD (GitHub Actions) — upgrade of the manual deploy in sections 6.3 and 6.4
 
-### 6.5 First WordPress access
+The pipeline automates **only** the application cycle: Docker build → ECR push (`:app`) → `ecs update-service --force-new-deployment` → wait for service stability. It does not run `terraform apply` / `destroy` and is intended as a substitute for the manual steps **6.3–6.4**.
+
+Workflow: [`.github/workflows/deploy-wordpress.yml`](.github/workflows/deploy-wordpress.yml).
+
+**Triggers**
+
+- `push` to `main` with changes under `docker/**` or to the workflow file itself
+- `workflow_dispatch` (manual run from Actions → *Deploy Wordpress to Amazon ECS* → *Run workflow*)
+
+**Flow**
+
+1. Assume an AWS role via **OIDC** (no static access keys in the repository)
+2. ECR login and `docker build` from the `docker/` context (CMS version = Dockerfile `ARG` default, currently `7.0`)
+3. Push the image under the mutable `app` tag
+4. Force a new ECS service deployment and `aws ecs wait services-stable`
+
+#### One-time setup (AWS permissions for GitHub)
+
+1. **OIDC Identity Provider** in IAM (project AWS account):
+   - Provider URL: `https://token.actions.githubusercontent.com`
+   - Audience: `sts.amazonaws.com`
+
+2. **IAM role** (e.g. `wordpress-dev-github-workflows-role`) assumable by GitHub with `sts:AssumeRoleWithWebIdentity`, with least-privilege permissions for:
+   - `ecr:GetAuthorizationToken`
+   - push to the application ECR repository (`BatchCheckLayerAvailability`, `InitiateLayerUpload`, `UploadLayerPart`, `CompleteLayerUpload`, `PutImage`, …)
+   - `ecs:UpdateService` and `ecs:DescribeServices` on the target cluster/service
+
+3. **Trust policy** — with `environment: dev` in the workflow (as in the current configuration), the OIDC token `sub` claim is typically (check CloudTrail on OIDC login issues):
+
+   `repo:<owner>@<owner_id>/<repo>@<repo_id>:environment:dev`
+
+```json
+{
+  "Effect": "Allow",
+  "Principal": {
+    "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com"
+  },
+  "Action": "sts:AssumeRoleWithWebIdentity",
+  "Condition": {
+    "StringEquals": {
+      "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+      "token.actions.githubusercontent.com:sub": "repo:<owner>@<owner_id>/<repo>@<repo_id>:environment:dev"
+    }
+  }
+}
+```
+
+4. **GitHub secret** (Settings → Secrets and variables → Actions → Secrets):
+   - `AWS_ROLE_ARN` = IAM role ARN (e.g. `arn:aws:iam::<ACCOUNT_ID>:role/<role_name>`)
+
+Deploy parameters (`AWS_REGION`, `ECR_REPOSITORY`, `ECS_CLUSTER`, `ECS_SERVICE`, `IMAGE_TAG`) are set in the workflow `env:` block and should be updated there if naming or region change.
+
+#### Day-to-day use
+
+- After the first `terraform apply`, image bootstrap can be done via **6.3–6.4** or by running the workflow (manual / push under `docker/`).
+- Later releases: change files under `docker/` → push to `main`, or *Run workflow*.
+- Infrastructure changes: `terraform apply` from a workstation only.
+
+### 6.6 First WordPress access
 
 1. Open the URL from `terraform output -raw cloudfront_url` in a browser.
 2. Complete the WordPress installation wizard (creates the CMS administrator; not managed by Terraform and stored in the database).
@@ -772,7 +892,7 @@ For later releases (WordPress version change or image rebuild): repeat only step
 
 The application contract is the official Hub image and its environment variables, configured when the environment and infrastructure resources are provisioned.
 
-### 6.6 Verification
+### 6.7 Verification
 
 - WordPress home reachable over HTTPS via CloudFront.
 - ALB target group healthy on the `GET /` health check.
@@ -839,9 +959,9 @@ The baseline covers the main security, availability, and scalability requirement
 
 **Release quality and operations**
 
-- Application CI/CD (build → ECR → ECS rolling), OIDC auth, no automatic `terraform apply`
-- Immutable ECR tags + per-build tagging (today deploy uses mutable `app`), with a new task-definition revision pointing at the new ECR image
+- Immutable ECR tags + per-build tagging (today deploy uses mutable `app`), with a new ECS task-definition revision pointing at the new image
 - Enhanced image scanning (Inspector) — basic scanning today
+- Potentially, for tighter version control at CI/CD level, `WORDPRESS_VERSION` could be parametrised in the application pipeline (on top of the Dockerfile wrapper, or instead of it)
 
 **Public identity and network**
 
