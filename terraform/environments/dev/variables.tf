@@ -98,7 +98,7 @@ variable "valkey_max_ecpu_per_second" {
   default     = 1000
 }
 
-variable "ecr_image_retention_days" {
+variable "ecr_image_retention_count" {
   description = "ECR lifecycle: number of tagged images to retain"
   type        = number
   default     = 10

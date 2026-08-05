@@ -118,7 +118,7 @@ module "ecr" {
   name_prefix = local.name_prefix
   common_tags = local.common_tags
 
-  image_retention_count = var.ecr_image_retention_days
+  image_retention_count = var.ecr_image_retention_count
   force_delete          = local.force_delete
 }
 
